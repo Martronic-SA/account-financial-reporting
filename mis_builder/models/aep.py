@@ -216,7 +216,7 @@ class AccountingExpressionProcessor(object):
         assert aml_domains
         return expression.OR(aml_domains) + \
             expression.OR(date_domain_by_mode.values())
-
+        
     def get_aml_domain_for_dates(self, date_from, date_to,
                                  mode,
                                  target_move):
@@ -228,7 +228,7 @@ class AccountingExpressionProcessor(object):
             # sum from the beginning of time
             date_from_date = fields.Date.from_string(date_from)
             fy_date_from = \
-                self.companies[0].\
+                self.companies.\
                 compute_fiscalyear_dates(date_from_date)['date_from']
             domain = ['|',
                       ('date', '>=', fields.Date.to_string(fy_date_from)),
@@ -240,7 +240,7 @@ class AccountingExpressionProcessor(object):
         elif mode == self.MODE_UNALLOCATED:
             date_from_date = fields.Date.from_string(date_from)
             fy_date_from = \
-                self.companies[0].\
+                self.companies.\
                 compute_fiscalyear_dates(date_from_date)['date_from']
             domain = [('date', '<', fields.Date.to_string(fy_date_from)),
                       ('user_type_id.include_initial_balance', '=', False)]
