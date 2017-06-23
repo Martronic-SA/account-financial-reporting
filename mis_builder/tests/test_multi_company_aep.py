@@ -42,27 +42,27 @@ class TestMultiCompanyAEP(common.TransactionCase):
             else:
                 divider = 2.0
             # create receivable bs account
-            setattr(self, 'account_ar_' + companyKey =\
+            setattr(self, 'account_ar_' + companyKey,
                 self.account_model.create({
                     'company_id': company.id,
                     'code': '400AR',
                     'name': 'Receivable',
                     'user_type_id': type_ar.id,
-                    'reconcile': True})
+                    'reconcile': True}))
             # create income pl account
-            setattr(self, 'account_in_' + companyKey =\
+            setattr(self, 'account_in_' + companyKey,
                 self.account_model.create({
                     'company_id': company.id,
                     'code': '700IN',
                     'name': 'Income',
-                    'user_type_id': type_in.id})
+                    'user_type_id': type_in.id}))
             # create journal
-            setattr(self, 'journal' + companyKey =\
+            setattr(self, 'journal' + companyKey,
                 self.journal_model.create({
                     'company_id': company.id,
                     'name': 'Sale journal',
                     'code': 'VEN',
-                    'type': 'sale'})
+                    'type': 'sale'}))
             # create move in december last year
             self._create_move(
                 journal = getattr(self, 'journal' + companyKey),
