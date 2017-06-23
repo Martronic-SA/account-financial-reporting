@@ -43,43 +43,43 @@ class TestMultiCompanyAEP(common.TransactionCase):
                 divider = 2.0
             # create receivable bs account
             setattr(self, 'account_ar_' + companyKey,
-                self.account_model.create({
-                    'company_id': company.id,
-                    'code': '400AR',
-                    'name': 'Receivable',
-                    'user_type_id': type_ar.id,
-                    'reconcile': True}))
+                    self.account_model.create({
+                        'company_id': company.id,
+                        'code': '400AR',
+                        'name': 'Receivable',
+                        'user_type_id': type_ar.id,
+                        'reconcile': True}))
             # create income pl account
             setattr(self, 'account_in_' + companyKey,
-                self.account_model.create({
-                    'company_id': company.id,
-                    'code': '700IN',
-                    'name': 'Income',
-                    'user_type_id': type_in.id}))
+                    self.account_model.create({
+                        'company_id': company.id,
+                        'code': '700IN',
+                        'name': 'Income',
+                        'user_type_id': type_in.id}))
             # create journal
             setattr(self, 'journal' + companyKey,
-                self.journal_model.create({
-                    'company_id': company.id,
-                    'name': 'Sale journal',
-                    'code': 'VEN',
-                    'type': 'sale'}))
+                    self.journal_model.create({
+                        'company_id': company.id,
+                        'name': 'Sale journal',
+                        'code': 'VEN',
+                        'type': 'sale'}))
             # create move in december last year
             self._create_move(
-                journal = getattr(self, 'journal' + companyKey),
+                journal=getattr(self, 'journal' + companyKey),
                 date=datetime.date(self.prev_year, 12, 1),
                 amount=100/divider,
                 debit_acc=getattr(self, 'account_ar_' + companyKey),
                 credit_acc=getattr(self, 'account_in_' + companyKey))
             # create move in january this year
             self._create_move(
-                journal = getattr(self, 'journal' + companyKey),
+                journal=getattr(self, 'journal' + companyKey),
                 date=datetime.date(self.curr_year, 1, 1),
                 amount=300/divider,
                 debit_acc=getattr(self, 'account_ar_' + companyKey),
                 credit_acc=getattr(self, 'account_in_' + companyKey))
             # create move in february this year
             self._create_move(
-                journal = getattr(self, 'journal' + companyKey),
+                journal=getattr(self, 'journal' + companyKey),
                 date=datetime.date(self.curr_year, 3, 1),
                 amount=500/divider,
                 debit_acc=getattr(self, 'account_ar_' + companyKey),
