@@ -109,13 +109,13 @@ class MisReportInstancePeriod(models.Model):
                     [('type_id', '=', record.date_range_type_id.id),
                      ('date_start', '<=', d),
                      ('date_end', '>=', d),
-                     ('company_id', '=',
-                      record.report_instance_id.company_id.id)])
+                     ('company_id', 'in',
+                      record.report_instance_id.company_ids.ids)])
                 if current_periods:
                     all_periods = date_range_obj.search(
                         [('type_id', '=', record.date_range_type_id.id),
-                         ('company_id', '=',
-                          record.report_instance_id.company_id.id)],
+                         ('company_id', 'in',
+                          record.report_instance_id.company_ids.ids)],
                         order='date_start')
                     all_period_ids = [p.id for p in all_periods]
                     p = all_period_ids.index(current_periods[0].id) + \
