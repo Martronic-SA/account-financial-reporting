@@ -1181,7 +1181,10 @@ class MisReport(models.Model):
         # fetch non-accounting queries
         locals_dict.update(self._fetch_queries(
             date_from, date_to, get_additional_query_filter))
-
+        # pass dates so we can work with them in eval
+        locals_dict.update({
+            'date_from':date_from,
+            'date_to':date_to})
         # use AEP to do the accounting queries
         additional_move_line_filter = None
         if get_additional_move_line_filter:
