@@ -3,6 +3,7 @@
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl.html).
 
 import traceback
+import datetime
 
 from odoo.tools.safe_eval import test_expr, _SAFE_OPCODES, _BUILTINS
 
@@ -22,7 +23,10 @@ def mis_safe_eval(expr, locals_dict):
     """
     try:
         c = test_expr(expr, _SAFE_OPCODES, mode='eval')
-        globals_dict = {'__builtins__': _BUILTINS}
+        builtins = _BUILTINS.copy()
+        builtins.update({
+            'datetime':datetime})
+        globals_dict = {'__builtins__': builtins}
         val = eval(c, globals_dict, locals_dict)  # pylint: disable=eval-used
     except NameError:
         val = NameDataError('#NAME', traceback.format_exc())
