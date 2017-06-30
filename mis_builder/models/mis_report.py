@@ -955,9 +955,10 @@ class MisReport(models.Model):
         return kpi_matrix
 
     @api.multi
-    def _prepare_aep(self, company_ids, currency_id=None):
+    def _prepare_aep(self, company_ids, currency_id=None,
+                     exchange_rate_date='now'):
         self.ensure_one()
-        aep = AEP(company_ids, currency_id)
+        aep = AEP(company_ids, currency_id, exchange_rate_date)
         for kpi in self.kpi_ids:
             for expression in kpi.expression_ids:
                 if expression.name:
