@@ -68,7 +68,7 @@ class AccountingExpressionProcessor(object):
                          r"(?P<accounts>_[a-zA-Z0-9]+|\[.*?\])"
                          r"(?P<domain>\[.*?\])?")
 
-    def __init__(self, companies, currency=None):
+    def __init__(self, companies, currency=None, exchange_rate_date='now'):
         self.companies = companies
         if not currency:
             self.currency = companies.mapped('currency_id')
@@ -77,6 +77,8 @@ class AccountingExpressionProcessor(object):
                     every companies must have the same currency."'))
         else:
             self.currency = currency
+        #exchange_rate_date can be now, date_from, date_to, daily
+        self.exchange_rate_date = exchange_rate_datec
         self.dp = self.currency.decimal_places
         # before done_parsing: {(domain, mode): set(account_codes)}
         # after done_parsing: {(domain, mode): list(account_ids)}
@@ -254,12 +256,16 @@ class AccountingExpressionProcessor(object):
             domain.append(('move_id.state', '=', 'posted'))
         return expression.normalize_domain(domain)
 
-    def get_company_rates(self):
+    def get_company_rates(self, date=None):
         # get exchange rates for each company with its rouding
         company_rates = {}
+        cur_model = self.companies.env['res.currency']
+        used_currency_dated = cur_model.with_context(date=date).browse(self.currency.id)
         for company in self.companies:
-            if company.currency_id != self.currency:
-                rate = self.currency.rate / company.currency_id.rate
+            if company.currency_id != used_currency_dated:
+                company_currency_dated =\
+                cur_model.with_context(date=date).browse(company.currency_id.id)
+                rate = used_currency_dated.rate / company_currency_dated.rate
             else:
                 rate = 1.0
             company_rates[company.id] = (rate,
@@ -278,7 +284,13 @@ class AccountingExpressionProcessor(object):
             aml_model = self.companies.env['account.move.line']
         else:
             aml_model = self.companies.env[aml_model]
-        company_rates = self.get_company_rates()
+        cur_model = self.companies.env['res.currency']
+        if self.exchange_rate_date == 'now':
+            company_rates = self.get_company_rates()
+        elif self.exchange_rate_date == 'date_to':
+            company_rates = self.get_company_rates(date_to)
+        elif self.exchange_rate_date == 'date_from':
+            company_rates = self.get_company_rates(date_from)
         # {(domain, mode): {account_id: (debit, credit)}}
         self._data = defaultdict(dict)
         domain_by_mode = {}
@@ -298,21 +310,58 @@ class AccountingExpressionProcessor(object):
             if additional_move_line_filter:
                 domain.extend(additional_move_line_filter)
             # fetch sum of debit/credit, grouped by account_id
-            accs = aml_model.read_group(
-                domain,
-                ['debit', 'credit', 'account_id', 'company_id'],
-                ['account_id', 'company_id'], lazy=False)
-            for acc in accs:
-                rate, dp = company_rates[acc['company_id'][0]]
-                debit = acc['debit'] or 0.0
-                credit = acc['credit'] or 0.0
-                if mode in (self.MODE_INITIAL, self.MODE_UNALLOCATED) and \
-                        float_is_zero(debit-credit,
-                                      precision_rounding=dp):
-                    # in initial mode, ignore accounts with 0 balance
-                    continue
-                self._data[key][acc['account_id'][0]] =\
-                    (debit*rate, credit*rate)
+            if self.exchange_rate_date == 'daily':
+                query = aml_model._where_calc(domain)
+                from_clause, where_clause, where_clause_params = query.get_sql()
+                where_str = where_clause and (" WHERE %s" % where_clause) or ''
+                query_str = """
+                    SELECT
+                        SUM(debit),
+                        SUM(credit),
+                        account_id,
+                        company_currency_id,
+                        date_maturity FROM """ + from_clause + where_str +\
+                    """ GROUP BY account_id, company_currency_id, date_maturity"""
+                aml_model._cr.execute(query_str, where_clause_params)
+                res = aml_model._cr.fetchall()
+                for acc in res:
+                    date = acc[4]
+                    company_currency_id = acc[3]
+                    debit = acc[0] or 0.0
+                    credit = acc[1] or 0.0
+                    dp = company_currency_dated.decimal_places
+                    company_currency_dated = cur_model.with_context(date=date).\
+                            browse(company_currency_id)
+                    if mode in (self.MODE_INITIAL, self.MODE_UNALLOCATED) and \
+                            float_is_zero(debit-credit,
+                                          precision_rounding=dp):
+                        # in initial mode, ignore accounts with 0 balance
+                        continue
+                    used_currency_dated = cur_model.with_context(date=date).browse(currency_id)
+                    rate = used_currency_dated.rate / company_currency_dated.rate
+                    _logger.info(rate)
+                    if not self._data[key].get(acc[2]):
+                        self._data[key][acc[2]] = (0, 0)
+                    acc_debit = self._data[key][acc[2]][0]
+                    acc_credit = self._data[key][acc[2]][1]
+                    self._data[key][acc[2]] =\
+                        (acc_debit+debit*rate, acc_credit+credit*rate)
+            else:
+                accs = aml_model.read_group(
+                    domain,
+                    ['debit', 'credit', 'account_id', 'company_id'],
+                    ['account_id', 'company_id'], lazy=False)
+                for acc in accs:
+                    rate, dp = company_rates[acc['company_id'][0]]
+                    debit = acc['debit'] or 0.0
+                    credit = acc['credit'] or 0.0
+                    if mode in (self.MODE_INITIAL, self.MODE_UNALLOCATED) and \
+                            float_is_zero(debit-credit,
+                                          precision_rounding=dp):
+                        # in initial mode, ignore accounts with 0 balance
+                        continue
+                    self._data[key][acc['account_id'][0]] =\
+                        (debit*rate, credit*rate)
         # compute ending balances by summing initial and variation
         for key in ends:
             domain, mode = key
