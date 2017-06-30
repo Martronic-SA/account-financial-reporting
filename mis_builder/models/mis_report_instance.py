@@ -361,6 +361,13 @@ class MisReportInstance(models.Model):
         help='Select currency target for the report. \
             User\'s company currency by default.',
         required=False)
+    exchange_rate_date = fields.Selection(
+        [('now', _('Now')),
+         ('date_from', _('Start of period')),
+         ('date_to', _('End of period')),
+         ('daily', _('Daily rate'))],
+        string='Exchange rate date',
+        default='now')
     landscape_pdf = fields.Boolean(string='Landscape PDF')
     comparison_mode = fields.Boolean(
         compute="_compute_comparison_mode",
@@ -583,7 +590,8 @@ class MisReportInstance(models.Model):
         currency = self.currency_id
         if not self.currency_id:
             currency = self.env['res.company']._get_user_currency()
-        aep = self.report_id._prepare_aep(self.company_ids, currency)
+        aep = self.report_id._prepare_aep(self.company_ids, currency,
+                                         self.exchange_rate_date)
         kpi_matrix = self.report_id.prepare_kpi_matrix()
         for period in self.period_ids:
             description = None
@@ -617,7 +625,7 @@ class MisReportInstance(models.Model):
         account_id = arg.get('account_id')
         if period_id and expr and AEP.has_account_var(expr):
             period = self.env['mis.report.instance.period'].browse(period_id)
-            aep = AEP(self.company_ids, currency)
+            aep = AEP(self.company_ids, currency, self.exchange_rate_date)
             aep.parse_expr(expr)
             aep.done_parsing()
             domain = aep.get_aml_domain_for_expr(
