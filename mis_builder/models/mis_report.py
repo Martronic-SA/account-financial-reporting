@@ -974,6 +974,7 @@ class MisReport(models.Model):
             'avg': _avg,
             'AccountingNone': AccountingNone,
             'SimpleArray': SimpleArray,
+            'datetime': datetime
         }
 
     @api.multi
