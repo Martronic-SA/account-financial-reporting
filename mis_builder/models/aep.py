@@ -28,6 +28,13 @@ class AccountingExpressionProcessor(object):
         * accounts is a list of accounts, possibly containing % wildcards
         * an optional domain on move lines allowing filters on eg analytic
           accounts or journal
+        * an optional parameter for rate calculation. this parameter will
+          override the default value set in the report instance.
+          possible values are
+          empty or now: current date exchange ratenow,
+          start: start date of period (date_from)
+          end: end date of period (date_to)
+          daily: daily rate of move line date.
 
     Examples:
         * bal[70]: variation of the balance of moves on account 70
@@ -66,7 +73,8 @@ class AccountingExpressionProcessor(object):
     _ACC_RE = re.compile(r"(?P<field>\bbal|\bcrd|\bdeb)"
                          r"(?P<mode>[piseu])?"
                          r"(?P<accounts>_[a-zA-Z0-9]+|\[.*?\])"
-                         r"(?P<domain>\[.*?\])?")
+                         r"(?P<domain>\[.*?\])?"
+                         r"(?P<exchange_rate_date>\bstart|\bend|\bnow|\bdaily)?")
 
     def __init__(self, companies, currency=None, exchange_rate_date='now'):
         self.companies = companies
@@ -123,7 +131,7 @@ class AccountingExpressionProcessor(object):
 
         Returns field, mode, [account codes], (domain expression).
         """
-        field, mode, account_codes, domain = mo.groups()
+        field, mode, account_codes, domain, exchange_rate_date = mo.groups()
         if not mode:
             mode = self.MODE_VARIATION
         elif mode == 's':
@@ -138,7 +146,7 @@ class AccountingExpressionProcessor(object):
             account_codes = [None]  # None means we want all accounts
         domain = domain or '[]'
         domain = tuple(safe_eval(domain))
-        return field, mode, account_codes, domain
+        return field, mode, account_codes, domain, exchange_rate_date
 
     def parse_expr(self, expr):
         """Parse an expression, extracting accounting variables.
@@ -148,13 +156,14 @@ class AccountingExpressionProcessor(object):
         account codes to query for each domain and mode.
         """
         for mo in self._ACC_RE.finditer(expr):
-            _, mode, account_codes, domain = self._parse_match_object(mo)
+            _, mode, account_codes, domain, exchange_rate_date = \
+                self._parse_match_object(mo)
             if mode == self.MODE_END and self.smart_end:
                 modes = (self.MODE_INITIAL, self.MODE_VARIATION, self.MODE_END)
             else:
                 modes = (mode, )
             for mode in modes:
-                key = (domain, mode)
+                key = (domain, mode, exchange_rate_date)
                 self._map_account_ids[key].update(account_codes)
 
     def done_parsing(self):
@@ -181,7 +190,8 @@ class AccountingExpressionProcessor(object):
         """
         account_ids = set()
         for mo in self._ACC_RE.finditer(expr):
-            field, mode, account_codes, domain = self._parse_match_object(mo)
+            field, mode, account_codes, domain, exchange_rate_date = \
+                self._parse_match_object(mo)
             for account_code in account_codes:
                 account_ids.update(self._account_ids_by_code[account_code])
         return account_ids
@@ -199,7 +209,8 @@ class AccountingExpressionProcessor(object):
         aml_domains = []
         date_domain_by_mode = {}
         for mo in self._ACC_RE.finditer(expr):
-            field, mode, account_codes, domain = self._parse_match_object(mo)
+            field, mode, account_codes, domain, exchange_rate_date = \
+                self._parse_match_object(mo)
             aml_domain = list(domain)
             account_ids = set()
             for account_code in account_codes:
@@ -287,19 +298,29 @@ class AccountingExpressionProcessor(object):
         cur_model = self.companies.env['res.currency']
         if self.exchange_rate_date == 'now':
             company_rates = self.get_company_rates()
-        elif self.exchange_rate_date == 'date_to':
+        elif self.exchange_rate_date == 'end':
             company_rates = self.get_company_rates(date_to)
-        elif self.exchange_rate_date == 'date_from':
+        elif self.exchange_rate_date == 'startc':
             company_rates = self.get_company_rates(date_from)
         # {(domain, mode): {account_id: (debit, credit)}}
         self._data = defaultdict(dict)
         domain_by_mode = {}
         ends = []
         for key in self._map_account_ids:
-            domain, mode = key
+            domain, mode, ex_rate_date = key
+            exchange_rate_date = ex_rate_date
+            if not exchange_rate_date:
+                exchange_rate_date = self.exchange_rate_date
+            elif exchange_rate_date != 'daily':
+                if exchange_rate_date == 'now':
+                    company_rates = self.get_company_rates()
+                elif exchange_rate_date == 'end':
+                    company_rates = self.get_company_rates(date_to)
+                elif exchange_rate_date == 'start':
+                    company_rates = self.get_company_rates(date_from)
             if mode == self.MODE_END and self.smart_end:
                 # postpone computation of ending balance
-                ends.append((domain, mode))
+                ends.append((domain, mode, ex_rate_date))
                 continue
             if mode not in domain_by_mode:
                 domain_by_mode[mode] = \
@@ -339,7 +360,6 @@ class AccountingExpressionProcessor(object):
                         continue
                     used_currency_dated = cur_model.with_context(date=date).browse(currency_id)
                     rate = used_currency_dated.rate / company_currency_dated.rate
-                    _logger.info(rate)
                     if not self._data[key].get(acc[2]):
                         self._data[key][acc[2]] = (0, 0)
                     acc_debit = self._data[key][acc[2]][0]
@@ -364,9 +384,9 @@ class AccountingExpressionProcessor(object):
                         (debit*rate, credit*rate)
         # compute ending balances by summing initial and variation
         for key in ends:
-            domain, mode = key
-            initial_data = self._data[(domain, self.MODE_INITIAL)]
-            variation_data = self._data[(domain, self.MODE_VARIATION)]
+            domain, mode, exchange_rate_date = key
+            initial_data = self._data[(domain, self.MODE_INITIAL, exchange_rate_date)]
+            variation_data = self._data[(domain, self.MODE_VARIATION, exchange_rate_date)]
             account_ids = set(initial_data.keys()) | set(variation_data.keys())
             for account_id in account_ids:
                 di, ci = initial_data.get(account_id,
@@ -383,8 +403,9 @@ class AccountingExpressionProcessor(object):
         This method must be executed after do_queries().
         """
         def f(mo):
-            field, mode, account_codes, domain = self._parse_match_object(mo)
-            key = (domain, mode)
+            field, mode, account_codes, domain, exchange_rate_date = \
+                self._parse_match_object(mo)
+            key = (domain, mode, exchange_rate_date)
             account_ids_data = self._data[key]
             v = AccountingNone
             for account_code in account_codes:
@@ -418,8 +439,9 @@ class AccountingExpressionProcessor(object):
         This method must be executed after do_queries().
         """
         def f(mo):
-            field, mode, account_codes, domain = self._parse_match_object(mo)
-            key = (domain, mode)
+            field, mode, account_codes, domain, exchange_rate_date = \
+                self._parse_match_object(mo)
+            key = (domain, mode, exchange_rate_date)
             # first check if account_id is involved in
             # the current expression part
             found = False
@@ -451,9 +473,9 @@ class AccountingExpressionProcessor(object):
         account_ids = set()
         for expr in exprs:
             for mo in self._ACC_RE.finditer(expr):
-                field, mode, account_codes, domain = \
+                field, mode, account_codes, domain, exchange_rate_date = \
                     self._parse_match_object(mo)
-                key = (domain, mode)
+                key = (domain, mode, exchange_rate_date)
                 account_ids_data = self._data[key]
                 for account_code in account_codes:
                     for account_id in self._account_ids_by_code[account_code]:
