@@ -363,8 +363,8 @@ class MisReportInstance(models.Model):
         required=False)
     exchange_rate_date = fields.Selection(
         [('now', _('Now')),
-         ('date_from', _('Start of period')),
-         ('date_to', _('End of period')),
+         ('start', _('Start of period')),
+         ('end', _('End of period')),
          ('daily', _('Daily rate'))],
         string='Exchange rate date',
         default='now')
