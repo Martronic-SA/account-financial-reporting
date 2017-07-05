@@ -31,10 +31,10 @@ class AccountingExpressionProcessor(object):
         * an optional parameter for rate calculation. this parameter will
           override the default value set in the report instance.
           possible values are
-          empty or now: current date exchange ratenow,
-          start: start date of period (date_from)
-          end: end date of period (date_to)
-          daily: daily rate of move line date.
+          empty or n: current date exchange ratenow,
+          s: start date of period (date_from)
+          e: end date of period (date_to)
+          d: daily rate of move line date.
 
     Examples:
         * bal[70]: variation of the balance of moves on account 70
@@ -74,9 +74,9 @@ class AccountingExpressionProcessor(object):
                          r"(?P<mode>[piseu])?"
                          r"(?P<accounts>_[a-zA-Z0-9]+|\[.*?\])"
                          r"(?P<domain>\[.*?\])?"
-                         r"(?P<exchange_rate_date>\bstart|\bend|\bnow|\bdaily)?")
+                         r"(?P<exchange_rate_date>[send])?")
 
-    def __init__(self, companies, currency=None, exchange_rate_date='now'):
+    def __init__(self, companies, currency=None, exchange_rate_date='n'):
         self.companies = companies
         if not currency:
             self.currency = companies.mapped('currency_id')
@@ -296,11 +296,11 @@ class AccountingExpressionProcessor(object):
         else:
             aml_model = self.companies.env[aml_model]
         cur_model = self.companies.env['res.currency']
-        if self.exchange_rate_date == 'now':
+        if self.exchange_rate_date == 'n':
             company_rates = self.get_company_rates()
-        elif self.exchange_rate_date == 'end':
+        elif self.exchange_rate_date == 'e':
             company_rates = self.get_company_rates(date_to)
-        elif self.exchange_rate_date == 'startc':
+        elif self.exchange_rate_date == 's':
             company_rates = self.get_company_rates(date_from)
         # {(domain, mode): {account_id: (debit, credit)}}
         self._data = defaultdict(dict)
@@ -311,12 +311,12 @@ class AccountingExpressionProcessor(object):
             exchange_rate_date = ex_rate_date
             if not exchange_rate_date:
                 exchange_rate_date = self.exchange_rate_date
-            elif exchange_rate_date != 'daily':
-                if exchange_rate_date == 'now':
+            elif exchange_rate_date != 'd':
+                if exchange_rate_date == 'n':
                     company_rates = self.get_company_rates()
-                elif exchange_rate_date == 'end':
+                elif exchange_rate_date == 'e':
                     company_rates = self.get_company_rates(date_to)
-                elif exchange_rate_date == 'start':
+                elif exchange_rate_date == 's':
                     company_rates = self.get_company_rates(date_from)
             if mode == self.MODE_END and self.smart_end:
                 # postpone computation of ending balance
