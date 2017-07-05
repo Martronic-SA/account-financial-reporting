@@ -85,8 +85,9 @@ class AccountingExpressionProcessor(object):
                     every companies must have the same currency."'))
         else:
             self.currency = currency
-        #exchange_rate_date can be now, date_from, date_to, daily
-        self.exchange_rate_date = exchange_rate_datec
+        # exchange_rate_date can be 
+        # n (now), s (date_from), e (date_to), d (daily)
+        self.exchange_rate_date = exchange_rate_date
         self.dp = self.currency.decimal_places
         # before done_parsing: {(domain, mode): set(account_codes)}
         # after done_parsing: {(domain, mode): list(account_ids)}
@@ -271,11 +272,13 @@ class AccountingExpressionProcessor(object):
         # get exchange rates for each company with its rouding
         company_rates = {}
         cur_model = self.companies.env['res.currency']
-        used_currency_dated = cur_model.with_context(date=date).browse(self.currency.id)
+        used_currency_dated = \
+        cur_model.with_context(date=date).browse(self.currency.id)
         for company in self.companies:
             if company.currency_id != used_currency_dated:
                 company_currency_dated =\
-                cur_model.with_context(date=date).browse(company.currency_id.id)
+                    cur_model.with_context(
+                        date=date).browse(company.currency_id.id)
                 rate = used_currency_dated.rate / company_currency_dated.rate
             else:
                 rate = 1.0
@@ -333,7 +336,8 @@ class AccountingExpressionProcessor(object):
             # fetch sum of debit/credit, grouped by account_id
             if self.exchange_rate_date == 'daily':
                 query = aml_model._where_calc(domain)
-                from_clause, where_clause, where_clause_params = query.get_sql()
+                from_clause, where_clause, where_clause_params = \
+                    query.get_sql()
                 where_str = where_clause and (" WHERE %s" % where_clause) or ''
                 query_str = """
                     SELECT
@@ -342,7 +346,10 @@ class AccountingExpressionProcessor(object):
                         account_id,
                         company_currency_id,
                         date_maturity FROM """ + from_clause + where_str +\
-                    """ GROUP BY account_id, company_currency_id, date_maturity"""
+                    """ GROUP BY
+                        account_id,
+                        company_currency_id,
+                        date_maturity"""
                 aml_model._cr.execute(query_str, where_clause_params)
                 res = aml_model._cr.fetchall()
                 for acc in res:
@@ -350,15 +357,17 @@ class AccountingExpressionProcessor(object):
                     company_currency_id = acc[3]
                     debit = acc[0] or 0.0
                     credit = acc[1] or 0.0
-                    dp = company_currency_dated.decimal_places
                     company_currency_dated = cur_model.with_context(date=date).\
-                            browse(company_currency_id)
+                        browse(company_currency_id)
+                    dp = company_currency_dated.decimal_places
                     if mode in (self.MODE_INITIAL, self.MODE_UNALLOCATED) and \
                             float_is_zero(debit-credit,
                                           precision_rounding=dp):
                         # in initial mode, ignore accounts with 0 balance
                         continue
-                    used_currency_dated = cur_model.with_context(date=date).browse(currency_id)
+                    used_currency_dated = \
+                        cur_model.with_context(date=date).\
+                            browse(self.currency)
                     rate = used_currency_dated.rate / company_currency_dated.rate
                     if not self._data[key].get(acc[2]):
                         self._data[key][acc[2]] = (0, 0)
@@ -385,8 +394,10 @@ class AccountingExpressionProcessor(object):
         # compute ending balances by summing initial and variation
         for key in ends:
             domain, mode, exchange_rate_date = key
-            initial_data = self._data[(domain, self.MODE_INITIAL, exchange_rate_date)]
-            variation_data = self._data[(domain, self.MODE_VARIATION, exchange_rate_date)]
+            initial_data = self._data[(domain,
+                                       self.MODE_INITIAL, exchange_rate_date)]
+            variation_data = self._data[(domain,
+                                         self.MODE_VARIATION, exchange_rate_date)]
             account_ids = set(initial_data.keys()) | set(variation_data.keys())
             for account_id in account_ids:
                 di, ci = initial_data.get(account_id,
