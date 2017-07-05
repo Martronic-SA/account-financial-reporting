@@ -299,7 +299,7 @@ class AccountingExpressionProcessor(object):
         else:
             aml_model = self.companies.env[aml_model]
         cur_model = self.companies.env['res.currency']
-        if self.exchange_rate_date == 'n':
+        if not self.exchange_rate_date or self.exchange_rate_date == 'n':
             company_rates = self.get_company_rates()
         elif self.exchange_rate_date == 'e':
             company_rates = self.get_company_rates(date_to)
@@ -312,7 +312,8 @@ class AccountingExpressionProcessor(object):
         for key in self._map_account_ids:
             domain, mode, ex_rate_date = key
             exchange_rate_date = ex_rate_date
-            if not exchange_rate_date:
+            if not exchange_rate_date or \
+                    exchange_rate_date == self.exchange_rate_date:
                 exchange_rate_date = self.exchange_rate_date
             elif exchange_rate_date != 'd':
                 if exchange_rate_date == 'n':
@@ -334,7 +335,7 @@ class AccountingExpressionProcessor(object):
             if additional_move_line_filter:
                 domain.extend(additional_move_line_filter)
             # fetch sum of debit/credit, grouped by account_id
-            if self.exchange_rate_date == 'daily':
+            if self.exchange_rate_date == 'd':
                 query = aml_model._where_calc(domain)
                 from_clause, where_clause, where_clause_params = \
                     query.get_sql()
