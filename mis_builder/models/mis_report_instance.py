@@ -362,10 +362,10 @@ class MisReportInstance(models.Model):
             User\'s company currency by default.',
         required=False)
     exchange_rate_date = fields.Selection(
-        [('now', _('Now')),
-         ('start', _('Start of period')),
-         ('end', _('End of period')),
-         ('daily', _('Daily rate'))],
+        [('n', _('Now')),
+         ('s', _('Start of period')),
+         ('e', _('End of period')),
+         ('d', _('Daily rate'))],
         string='Exchange rate date',
         default='now')
     landscape_pdf = fields.Boolean(string='Landscape PDF')
