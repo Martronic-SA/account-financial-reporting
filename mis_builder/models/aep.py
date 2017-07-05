@@ -85,7 +85,7 @@ class AccountingExpressionProcessor(object):
                     every companies must have the same currency."'))
         else:
             self.currency = currency
-        # exchange_rate_date can be 
+        # exchange_rate_date can be
         # n (now), s (date_from), e (date_to), d (daily)
         self.exchange_rate_date = exchange_rate_date
         self.dp = self.currency.decimal_places
@@ -273,7 +273,7 @@ class AccountingExpressionProcessor(object):
         company_rates = {}
         cur_model = self.companies.env['res.currency']
         used_currency_dated = \
-        cur_model.with_context(date=date).browse(self.currency.id)
+            cur_model.with_context(date=date).browse(self.currency.id)
         for company in self.companies:
             if company.currency_id != used_currency_dated:
                 company_currency_dated =\
@@ -358,7 +358,8 @@ class AccountingExpressionProcessor(object):
                     company_currency_id = acc[3]
                     debit = acc[0] or 0.0
                     credit = acc[1] or 0.0
-                    company_currency_dated = cur_model.with_context(date=date).\
+                    company_currency_dated = \
+                        cur_model.with_context(date=date).\
                         browse(company_currency_id)
                     dp = company_currency_dated.decimal_places
                     if mode in (self.MODE_INITIAL, self.MODE_UNALLOCATED) and \
@@ -366,10 +367,10 @@ class AccountingExpressionProcessor(object):
                                           precision_rounding=dp):
                         # in initial mode, ignore accounts with 0 balance
                         continue
-                    used_currency_dated = \
+                    currency_dated = \
                         cur_model.with_context(date=date).\
-                            browse(self.currency.id)
-                    rate = used_currency_dated.rate / company_currency_dated.rate
+                        browse(self.currency.id)
+                    rate = currency_dated.rate / company_currency_dated.rate
                     if not self._data[key].get(acc[2]):
                         self._data[key][acc[2]] = (0, 0)
                     acc_debit = self._data[key][acc[2]][0]
@@ -396,9 +397,9 @@ class AccountingExpressionProcessor(object):
         for key in ends:
             domain, mode, exchange_rate_date = key
             initial_data = self._data[(domain,
-                                       self.MODE_INITIAL, exchange_rate_date)]
+                self.MODE_INITIAL, exchange_rate_date)]
             variation_data = self._data[(domain,
-                                         self.MODE_VARIATION, exchange_rate_date)]
+                self.MODE_VARIATION, exchange_rate_date)]
             account_ids = set(initial_data.keys()) | set(variation_data.keys())
             for account_id in account_ids:
                 di, ci = initial_data.get(account_id,
