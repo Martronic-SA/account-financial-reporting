@@ -368,7 +368,7 @@ class AccountingExpressionProcessor(object):
                         continue
                     used_currency_dated = \
                         cur_model.with_context(date=date).\
-                            browse(self.currency)
+                            browse(self.currency.id)
                     rate = used_currency_dated.rate / company_currency_dated.rate
                     if not self._data[key].get(acc[2]):
                         self._data[key][acc[2]] = (0, 0)
