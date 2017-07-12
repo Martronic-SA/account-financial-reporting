@@ -367,7 +367,7 @@ class MisReportInstance(models.Model):
          ('e', _('End of period')),
          ('d', _('Daily rate'))],
         string='Exchange rate date',
-        default='now')
+        default='n')
     landscape_pdf = fields.Boolean(string='Landscape PDF')
     comparison_mode = fields.Boolean(
         compute="_compute_comparison_mode",
