@@ -102,6 +102,10 @@ class AccountingExpressionProcessor(object):
         # a first query to get the initial balance and another
         # to get the variation, so it's a bit slower
         self.smart_end = True
+        # daily_rates will store each daily rate on do_query
+        # so they are not calculated many times and improves
+        # rendering speed
+        self.daily_rates = {}
 
     def _load_account_codes(self, account_codes):
         account_model = self.companies.env['account.account']
@@ -312,16 +316,14 @@ class AccountingExpressionProcessor(object):
         for key in self._map_account_ids:
             domain, mode, ex_rate_date = key
             exchange_rate_date = ex_rate_date
-            if not exchange_rate_date or \
-                    exchange_rate_date == self.exchange_rate_date:
+            if not exchange_rate_date:
                 exchange_rate_date = self.exchange_rate_date
-            elif exchange_rate_date != 'd':
-                if exchange_rate_date == 'n':
-                    company_rates = self.get_company_rates()
-                elif exchange_rate_date == 'e':
-                    company_rates = self.get_company_rates(date_to)
-                elif exchange_rate_date == 's':
-                    company_rates = self.get_company_rates(date_from)
+            if exchange_rate_date == 'n' or not exchange_rate_date:
+                company_rates = self.get_company_rates()
+            elif exchange_rate_date == 'e':
+                company_rates = self.get_company_rates(date_to)
+            elif exchange_rate_date == 's':
+                company_rates = self.get_company_rates(date_from)
             if mode == self.MODE_END and self.smart_end:
                 # postpone computation of ending balance
                 ends.append((domain, mode, ex_rate_date))
@@ -356,21 +358,24 @@ class AccountingExpressionProcessor(object):
                 for acc in res:
                     date = acc[4]
                     company_currency_id = acc[3]
+                    if not self.daily_rates.get(company_currency_id):
+                        dp = cur_model.browse(company_currency_id).decimal_places
+                        self.daily_rates[company_currency_id] = {'dp':dp}
+                    dp = self.daily_rates[company_currency_id]['dp']
                     debit = acc[0] or 0.0
                     credit = acc[1] or 0.0
-                    company_currency_dated = \
-                        cur_model.with_context(date=date).\
-                        browse(company_currency_id)
-                    dp = company_currency_dated.decimal_places
                     if mode in (self.MODE_INITIAL, self.MODE_UNALLOCATED) and \
                             float_is_zero(debit-credit,
                                           precision_rounding=dp):
                         # in initial mode, ignore accounts with 0 balance
                         continue
-                    currency_dated = \
-                        cur_model.with_context(date=date).\
-                        browse(self.currency.id)
-                    rate = currency_dated.rate / company_currency_dated.rate
+                    if not self.daily_rates[company_currency_id].get(date):
+                        company_currency_dated = cur_model.with_context(date=date).\
+                                browse(company_currency_id)
+                        used_currency_dated = cur_model.with_context(date=date).\
+                                browse(self.currency.id)
+                        rate = used_currency_dated.rate / company_currency_dated.rate
+                        self.daily_rates[company_currency_id][date] = rate
                     if not self._data[key].get(acc[2]):
                         self._data[key][acc[2]] = (0, 0)
                     acc_debit = self._data[key][acc[2]][0]
