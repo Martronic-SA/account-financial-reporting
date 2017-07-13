@@ -357,11 +357,11 @@ class AccountingExpressionProcessor(object):
                 res = aml_model._cr.fetchall()
                 for acc in res:
                     date = acc[4]
-                    company_currency_id = acc[3]
-                    if not self.daily_rates.get(company_currency_id):
-                        dp = cur_model.browse(company_currency_id).decimal_places
-                        self.daily_rates[company_currency_id] = {'dp':dp}
-                    dp = self.daily_rates[company_currency_id]['dp']
+                    com_cur_id = acc[3]
+                    if not self.daily_rates.get(com_cur_id):
+                        dp = cur_model.browse(com_cur_id).decimal_places
+                        self.daily_rates[com_cur_id] = {'dp': dp}
+                    dp = self.daily_rates[com_cur_id]['dp']
                     debit = acc[0] or 0.0
                     credit = acc[1] or 0.0
                     if mode in (self.MODE_INITIAL, self.MODE_UNALLOCATED) and \
@@ -369,13 +369,14 @@ class AccountingExpressionProcessor(object):
                                           precision_rounding=dp):
                         # in initial mode, ignore accounts with 0 balance
                         continue
-                    if not self.daily_rates[company_currency_id].get(date):
-                        company_currency_dated = cur_model.with_context(date=date).\
-                                browse(company_currency_id)
-                        used_currency_dated = cur_model.with_context(date=date).\
-                                browse(self.currency.id)
-                        rate = used_currency_dated.rate / company_currency_dated.rate
-                        self.daily_rates[company_currency_id][date] = rate
+                    if not self.daily_rates[com_cur_id].get(date):
+                        com_cur_dated = cur_model.\
+                            with_context(date=date).browse(com_cur_id)
+                        used_cur_dated = cur_model.\
+                            with_context(date=date).browse(self.currency.id)
+                        rate = used_cur_dated.rate / com_cur_dated.rate
+                        self.daily_rates[com_cur_id][date] = rate
+                    rate = self.daily_rates[com_cur_id][date]
                     if not self._data[key].get(acc[2]):
                         self._data[key][acc[2]] = (0, 0)
                     acc_debit = self._data[key][acc[2]][0]
@@ -402,9 +403,9 @@ class AccountingExpressionProcessor(object):
         for key in ends:
             domain, mode, exchange_rate_date = key
             initial_data = self._data[(domain,
-                self.MODE_INITIAL, exchange_rate_date)]
+                    self.MODE_INITIAL, exchange_rate_date)]
             variation_data = self._data[(domain,
-                self.MODE_VARIATION, exchange_rate_date)]
+                    self.MODE_VARIATION, exchange_rate_date)]
             account_ids = set(initial_data.keys()) | set(variation_data.keys())
             for account_id in account_ids:
                 di, ci = initial_data.get(account_id,
