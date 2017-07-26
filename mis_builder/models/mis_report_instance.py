@@ -594,6 +594,7 @@ class MisReportInstance(models.Model):
             currency = self.env['res.company']._get_user_currency()
         aep = self.report_id._prepare_aep(self.computed_company_ids, currency)
         kpi_matrix = self.report_id.prepare_kpi_matrix()
+        kpi_matrix.currency = currency
         for period in self.period_ids:
             description = None
             if period.mode == MODE_NONE:
