@@ -36,6 +36,7 @@ PROPS = [
 TYPE_NUM = 'num'
 TYPE_PCT = 'pct'
 TYPE_STR = 'str'
+TYPE_MON = 'mon'
 
 CMP_DIFF = 'diff'
 CMP_PCT = 'pct'
@@ -158,13 +159,16 @@ class MisReportKpiStyle(models.Model):
         return r
 
     @api.model
-    def render(self, lang, style_props, type, value):
+    def render(self, lang, style_props, type, value, currency=None):
         if type == 'num':
             return self.render_num(lang, value, style_props.divider,
                                    style_props.dp,
                                    style_props.prefix, style_props.suffix)
         elif type == 'pct':
             return self.render_pct(lang, value, style_props.dp)
+        elif type == 'mon':
+            return self.render_mon(lang, value, style_props.prefix,
+                                   style_props.suffix, currency)
         else:
             return self.render_str(lang, value)
 
@@ -182,6 +186,33 @@ class MisReportKpiStyle(models.Model):
         if suffix:
             r = r + u'\N{NO-BREAK SPACE}' + suffix
         return r
+
+    @api.model
+    def render_mon(self, lang, value, prefix=None, suffix=None,
+            currency=None):
+        # format number following user language
+        if value is None or value is AccountingNone:
+            return u''
+        if not currency:
+            currency = self.env.user.company_id.currency_id
+        fmt = "%.{0}f".format(currency.decimal_places)
+        r = lang.format(
+            fmt, currency.round(value),
+            grouping=True, monetary=True).replace(r' ', u'\N{NO-BREAK SPACE}')
+        if not prefix:
+            prefix = u''
+        if not suffix:
+            suffix = u''
+        if not prefix and currency.position == 'before':
+            prefix = u'{symbol}\N{NO-BREAK SPACE}'
+        elif not suffix:
+            suffix = u'\N{NO-BREAK SPACE}{symbol}'
+        return u'{pre}{0}{post}'.format(
+            r,
+            pre=prefix, post=suffix,
+        ).format(
+            symbol=currency.symbol or '',
+        )
 
     @api.model
     def render_pct(self, lang, value, dp=1, sign='-'):
