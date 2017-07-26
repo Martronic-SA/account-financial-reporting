@@ -318,6 +318,17 @@ class MisReportInstance(models.Model):
                 record.pivot_date = record.date
             else:
                 record.pivot_date = fields.Date.context_today(record)
+    @api.multi
+    def _compute_company_ids(self):
+        for record in self:
+            if not record.company_ids:
+                user_company_id = self.env.user.company_id.id
+                record.computed_company_ids = self.env['res.company'].search(
+                        ['|',
+                        ('id','=',user_company_id),
+                        ('parent_id','child_of',user_company_id)])
+            else:
+                record.computed_company_ids = record.company_ids
 
     _name = 'mis.report.instance'
 
@@ -349,6 +360,10 @@ class MisReportInstance(models.Model):
         help='Select companies for which data will  be searched. \
             User\'s company by default.',
         required=False)
+    computed_company_ids = fields.Many2many(
+        comodel_name='res.company',
+        string='Company',
+        compute='_compute_company_ids')
     currency_id = fields.Many2one(
         comodel_name='res.currency',
         string='Currency',
@@ -577,15 +592,7 @@ class MisReportInstance(models.Model):
         currency = self.currency_id
         if not self.currency_id:
             currency = self.env['res.company']._get_user_currency()
-        if not self.company_ids:
-            user_company_id = self.env.user.company_id.id
-            company_ids = self.env['res.company'].search(
-                    ['|',
-                    ('id','=',user_company_id),
-                    ('parent_id','child_of',user_company_id)])
-        else:
-            company_ids = company_ids
-        aep = self.report_id._prepare_aep(self.company_ids, currency)
+        aep = self.report_id._prepare_aep(self.computed_company_ids, currency)
         kpi_matrix = self.report_id.prepare_kpi_matrix()
         for period in self.period_ids:
             description = None
@@ -614,20 +621,12 @@ class MisReportInstance(models.Model):
         currency = self.currency_id
         if not self.currency_id:
             currency = self.env['res.company']._get_user_currency()
-        if not self.company_ids:
-            user_company_id = self.env.user.company_id.id
-            company_ids = self.env['res.company'].search(
-                    ['|',
-                    ('id','=',user_company_id),
-                    ('parent_id','child_of',user_company_id)])
-        else:
-            company_ids = self.company_ids
         period_id = arg.get('period_id')
         expr = arg.get('expr')
         account_id = arg.get('account_id')
         if period_id and expr and AEP.has_account_var(expr):
             period = self.env['mis.report.instance.period'].browse(period_id)
-            aep = AEP(company_ids, currency)
+            aep = AEP(self.computed_company_ids, currency)
             aep.parse_expr(expr)
             aep.done_parsing()
             domain = aep.get_aml_domain_for_expr(
