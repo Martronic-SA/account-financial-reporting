@@ -22,7 +22,7 @@ from .accounting_none import AccountingNone
 from .simple_array import SimpleArray
 from .mis_safe_eval import mis_safe_eval, DataError, NameDataError
 from .mis_report_style import (
-    TYPE_NUM, TYPE_PCT, TYPE_STR, CMP_DIFF, CMP_PCT, CMP_NONE
+    TYPE_MON, TYPE_NUM, TYPE_PCT, TYPE_STR, CMP_DIFF, CMP_PCT, CMP_NONE
 )
 from .mis_kpi_data import (
     ACC_SUM, ACC_AVG, ACC_NONE
@@ -185,6 +185,7 @@ class KpiMatrix(object):
         self._sum_todo = {}
         # { account_id: account_name }
         self._account_names = {}
+        self.currency = None
 
     def declare_kpi(self, kpi):
         """ Declare a new kpi (row) in the matrix.
@@ -260,7 +261,7 @@ class KpiMatrix(object):
                 val_comment = val.msg
             else:
                 val_rendered = self._style_model.render(
-                    self.lang, row.style_props, kpi.type, val)
+                    self.lang, row.style_props, kpi.type, val, self.currency)
                 if row.kpi.multi and subcol.subkpi:
                     val_comment = u'{}.{} = {}'.format(
                         row.kpi.name,
@@ -563,7 +564,8 @@ class MisReportKpi(models.Model):
         string='Style expression',
         help='An expression that returns a style depending on the KPI value. '
              'Such style is applied on top of the row style.')
-    type = fields.Selection([(TYPE_NUM, _('Numeric')),
+    type = fields.Selection([(TYPE_MON, _('Monetary')),
+                             (TYPE_NUM, _('Numeric')),
                              (TYPE_PCT, _('Percentage')),
                              (TYPE_STR, _('String'))],
                             required=True,
